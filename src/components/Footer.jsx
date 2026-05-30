@@ -13,7 +13,7 @@ export default function Footer() {
           FitFuel provides general estimates for education only. It is not medical advice.
           Consult a doctor or dietitian before making big changes.
         </p>
-        <p>&copy; {new Date().getFullYear()} FitFuel. Built for beginners. By Varun.</p>
+        <p>&copy; {new Date().getFullYear()} FitFuel. Varun Chimata.</p>
       </div>
     </footer>
   )
