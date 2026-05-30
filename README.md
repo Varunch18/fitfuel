@@ -33,6 +33,18 @@ npm run build
 npm run preview
 ```
 
+## Deployment (GitHub Pages)
+
+This repo auto-deploys to GitHub Pages via `.github/workflows/deploy.yml` on every push to `main`.
+
+**One-time setup:** on GitHub go to **Settings → Pages → Build and deployment → Source** and select **GitHub Actions**.
+
+Live URL: **https://Varunch18.github.io/fitfuel/**
+
+Notes:
+- `vite.config.js` sets `base: '/fitfuel/'` for production so assets resolve under the project subpath (dev stays at `/`).
+- The router uses `basename={import.meta.env.BASE_URL}` and the workflow copies `index.html` → `404.html` so client-side routes work on refresh/deep-link.
+
 ## Formulas used
 
 | Metric | Formula |
