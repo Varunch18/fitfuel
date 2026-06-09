@@ -3,11 +3,13 @@ import { CalendarDays, TrendingDown, TrendingUp, Minus, Flag } from 'lucide-reac
 
 /**
  * Week-by-week cut / bulk / maintain plan.
- * `plan` is the object returned by generateWeeklyPlan() and `startWeight`
- * is the user's current weight (used as the "Week 0" baseline).
+ * `projection` is the object returned by generateProjection() (TDEE is
+ * recomputed each week, so the path is non-linear) and `startWeight` is the
+ * user's current weight (the "Week 0" baseline).
  */
-export default function WeeklyPlan({ plan, startWeight, goalLabel, healthyRange }) {
-  const { weeklyChangeKg, isMaintain, targetWeight, reachesTarget, weeks, totalChangeKg } = plan
+export default function WeeklyPlan({ projection, startWeight, goalLabel, healthyRange }) {
+  const { weeklyChangeKg, isMaintain, targetWeight, reachesTarget, weeksToTarget, weeks, totalChangeKg } =
+    projection
 
   // Direction styling: losing (rose), gaining (brand/green), maintaining (sky).
   const losing = weeklyChangeKg < 0
@@ -72,7 +74,7 @@ export default function WeeklyPlan({ plan, startWeight, goalLabel, healthyRange 
           <p className="mt-1 text-xs text-slate-400">
             {targetWeight
               ? reachesTarget
-                ? `Reached in ~${weeks.length} weeks`
+                ? `Reached in ~${weeksToTarget} weeks`
                 : `Not reached within ${weeks.length} weeks`
               : healthyRange
                 ? `Healthy range ${healthyRange.min}–${healthyRange.max} kg`
@@ -95,8 +97,9 @@ export default function WeeklyPlan({ plan, startWeight, goalLabel, healthyRange 
             <thead>
               <tr className="border-b border-slate-200 text-left text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 <th className="px-4 py-3 font-semibold">Week</th>
-                <th className="px-4 py-3 font-semibold">Target weight</th>
-                <th className="px-4 py-3 font-semibold">Daily calories</th>
+                <th className="px-4 py-3 font-semibold">Est. weight (range)</th>
+                <th className="hidden px-4 py-3 font-semibold sm:table-cell">Maintenance</th>
+                <th className="px-4 py-3 font-semibold">Calories</th>
                 <th className="hidden px-4 py-3 font-semibold sm:table-cell">Progress</th>
               </tr>
             </thead>
@@ -116,9 +119,17 @@ export default function WeeklyPlan({ plan, startWeight, goalLabel, healthyRange 
                     <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-200">
                       Week {w.week}
                     </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{w.weight} kg</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-200">
+                      {w.weight} kg
+                      <span className="ml-1 text-xs text-slate-400">
+                        ({w.weightLow}–{w.weightHigh})
+                      </span>
+                    </td>
+                    <td className="hidden px-4 py-3 text-slate-500 dark:text-slate-400 sm:table-cell">
+                      {w.tdee.toLocaleString()} kcal
+                    </td>
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
-                      {w.calories.toLocaleString()} kcal
+                      {w.calories.toLocaleString()}
                     </td>
                     <td className="hidden px-4 py-3 sm:table-cell">
                       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
@@ -137,8 +148,9 @@ export default function WeeklyPlan({ plan, startWeight, goalLabel, healthyRange 
       )}
 
       <p className="mt-3 text-xs text-slate-400">
-        Estimates assume ~7,700 kcal per kg of body mass and steady adherence. Real results vary with
-        water, muscle and consistency — weigh in weekly and adjust.
+        Maintenance calories are recalculated at each week's projected weight, so the rate naturally
+        slows as you approach your goal. The range reflects normal variation in adherence and energy
+        balance (~7,700 kcal ≈ 1 kg) — weigh in weekly and adjust.
       </p>
     </div>
   )

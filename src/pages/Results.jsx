@@ -2,24 +2,24 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Beef,
+  CalendarCheck,
   Drumstick,
   Flame,
+  Gauge,
   HeartPulse,
   Leaf,
   Nut,
   Pencil,
+  Percent,
+  Scale,
   Trash2,
+  TrendingDown,
+  TrendingUp,
   Wheat,
   Zap,
 } from 'lucide-react'
 import { useUserData } from '../context/UserDataContext.jsx'
-import {
-  ACTIVITY_LEVELS,
-  GOALS,
-  computeResults,
-  generateWeeklyPlan,
-  getHealthyWeightRange,
-} from '../utils/calculations.js'
+import { computeResults } from '../utils/calculations.js'
 import {
   HEALTHY_CARBS,
   HEALTHY_FATS,
@@ -31,6 +31,21 @@ import CalorieGauge from '../components/CalorieGauge.jsx'
 import MacroBar from '../components/MacroBar.jsx'
 import FoodList from '../components/FoodList.jsx'
 import WeeklyPlan from '../components/WeeklyPlan.jsx'
+import FeedbackList from '../components/FeedbackList.jsx'
+
+// Friendly labels for how body fat was derived.
+const BF_METHOD_LABEL = {
+  measured: 'your measured %',
+  rfm: 'estimated from waist',
+  bmi: 'estimated from BMI',
+}
+
+// Formats an approximate completion date N weeks from now.
+function weeksFromNowLabel(weeks) {
+  const d = new Date()
+  d.setDate(d.getDate() + weeks * 7)
+  return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+}
 
 // Empty state shown when there's no saved data yet.
 function NoData() {
@@ -57,8 +72,7 @@ export default function Results() {
   if (!userData) return <NoData />
 
   const r = computeResults(userData)
-  const goal = GOALS[userData.goal] ?? GOALS.maintain
-  const activity = ACTIVITY_LEVELS[userData.activity] ?? ACTIVITY_LEVELS.moderate
+  const goal = r.goal
 
   // Percentage of total calories that each macro contributes (for the bars).
   const total = r.goalCalories || 1
@@ -68,12 +82,27 @@ export default function Results() {
     fat: (r.macros.fat.cals / total) * 100,
   }
 
-  // Week-by-week projection toward the (optional) target weight.
+  // Non-linear week-by-week projection toward the (optional) target weight.
   const startWeight = Number(userData.weight)
-  const healthyRange = getHealthyWeightRange(Number(userData.height))
-  const weeklyPlan = generateWeeklyPlan(startWeight, r.tdee, r.goalCalories, {
-    targetWeight: userData.targetWeight,
-  })
+  const healthyRange = r.healthyRange
+  const projection = r.projection
+
+  // Calorie deficit/surplus presentation.
+  const deficit = r.dailyDelta
+  const deficitTone = deficit < 0 ? 'rose' : deficit > 0 ? 'brand' : 'sky'
+
+  // Goal completion estimate.
+  const hasTarget = !!projection.targetWeight
+  const etaValue = hasTarget
+    ? projection.reachesTarget
+      ? `${projection.weeksToTarget} wks`
+      : '16+ wks'
+    : '—'
+  const etaHint = hasTarget
+    ? projection.reachesTarget
+      ? `~${weeksFromNowLabel(projection.weeksToTarget)} to ${projection.targetWeight} kg`
+      : 'Target not reached in 16 weeks'
+    : 'Set a target weight'
 
   // Build the protein cards based on diet preference.
   // 'mix' shows both veg and non-veg sources side by side.
@@ -103,7 +132,7 @@ export default function Results() {
           </h1>
           <p className="mt-1 text-slate-500 dark:text-slate-400">
             Goal: <span className="font-semibold text-brand-600">{goal.label}</span> ·{' '}
-            {activity.label}
+            {r.activity.label} (factor {r.activity.multiplier})
           </p>
         </div>
         <div className="flex gap-2">
@@ -142,6 +171,40 @@ export default function Results() {
           value={r.tdee.toLocaleString()}
           unit="kcal"
           hint="Calories to stay the same weight"
+          tone="sky"
+        />
+      </div>
+
+      {/* Body composition & goal stats */}
+      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          icon={Scale}
+          title="Lean Body Mass"
+          value={r.leanBodyMass}
+          unit="kg"
+          hint="Fat-free mass (muscle, bone, organs)"
+          tone="brand"
+        />
+        <StatCard
+          icon={Percent}
+          title="Body Fat (est.)"
+          value={`${r.bodyFat.percent}%`}
+          hint={`${r.bodyFat.category.label} · ${BF_METHOD_LABEL[r.bodyFat.method]}`}
+          tone={r.bodyFat.category.color}
+        />
+        <StatCard
+          icon={deficit < 0 ? TrendingDown : TrendingUp}
+          title={deficit < 0 ? 'Daily Deficit' : deficit > 0 ? 'Daily Surplus' : 'Energy Balance'}
+          value={`${deficit > 0 ? '+' : ''}${deficit.toLocaleString()}`}
+          unit="kcal"
+          hint={deficit === 0 ? 'At maintenance' : `${deficit < 0 ? 'Below' : 'Above'} maintenance`}
+          tone={deficitTone}
+        />
+        <StatCard
+          icon={hasTarget ? CalendarCheck : Gauge}
+          title="Goal Completion"
+          value={etaValue}
+          hint={etaHint}
           tone="sky"
         />
       </div>
@@ -191,15 +254,19 @@ export default function Results() {
             />
           </div>
           <div className="mt-6 rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-            <span className="font-semibold">Quick tip:</span> Aim to hit your protein target first —
-            it keeps you full and protects muscle. Fill the rest with carbs and healthy fats.
+            <span className="font-semibold">Protein target:</span> {r.protein.grams} g/day
+            (recommended {r.protein.minGrams}–{r.protein.maxGrams} g, ~{r.protein.perKg} g/kg for a{' '}
+            {goal.label.toLowerCase()}). Hit this first — it preserves muscle and keeps you full.
           </div>
         </div>
       </div>
 
+      {/* Smart feedback / safety guidance */}
+      <FeedbackList messages={r.feedback} />
+
       {/* Week-by-week cut / bulk / maintain plan */}
       <WeeklyPlan
-        plan={weeklyPlan}
+        projection={projection}
         startWeight={startWeight}
         goalLabel={goal.label}
         healthyRange={healthyRange}

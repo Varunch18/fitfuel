@@ -1,15 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, RotateCcw, Sparkles, User } from 'lucide-react'
+import { Activity, ArrowRight, Gauge, RotateCcw, Sparkles, User } from 'lucide-react'
 import { useUserData, DEFAULT_DATA } from '../context/UserDataContext.jsx'
-import {
-  ACTIVITY_LEVELS,
-  GOALS,
-  getHealthyWeightRange,
-  suggestTargetWeight,
-  validateUserData,
-} from '../utils/calculations.js'
+import { GOALS, calculateBMI, validateUserData } from '../utils/calculations.js'
+import { OCCUPATION_LEVELS, computeActivityMultiplier } from '../utils/activity.js'
+import { recommendTargetRange } from '../utils/goals.js'
+import { estimateBodyFat, calculateLeanBodyMass } from '../utils/bodyComposition.js'
 
 // Calculator form: collects user inputs, validates, saves, then routes to results.
 export default function Calculator() {
@@ -39,12 +36,37 @@ export default function Calculator() {
     setErrors({})
   }
 
-  // Live target-weight suggestion based on the entered height, weight & goal.
+  // Live, personalized estimates shown as the user fills the form.
   const heightN = Number(form.height)
   const weightN = Number(form.weight)
+  const ageN = Number(form.age) || 25
+  const gender = form.gender === 'female' ? 'female' : 'male'
   const canSuggest = heightN >= 100 && heightN <= 250 && weightN >= 30 && weightN <= 300
-  const suggested = canSuggest ? suggestTargetWeight(weightN, heightN, form.goal) : null
-  const range = canSuggest ? getHealthyWeightRange(heightN) : null
+
+  // Live activity factor preview from the lifestyle inputs.
+  const activityPreview = computeActivityMultiplier(form)
+
+  // Recommended healthy target-weight *range* (replaces the old fixed number).
+  let targetRange = null
+  if (canSuggest) {
+    const bmi = calculateBMI(weightN, heightN)
+    const bf = estimateBodyFat({
+      bmi,
+      age: ageN,
+      gender,
+      heightCm: heightN,
+      bodyFat: form.bodyFat,
+      waist: form.waist,
+    })
+    const lbm = calculateLeanBodyMass(weightN, bf.percent)
+    targetRange = recommendTargetRange({
+      weightKg: weightN,
+      heightCm: heightN,
+      goalKey: form.goal,
+      leanBodyMass: lbm,
+      gender,
+    })
+  }
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
@@ -138,20 +160,116 @@ export default function Calculator() {
           </div>
         </div>
 
-        {/* Activity level */}
-        <div>
-          <label className="field-label">Activity Level</label>
-          <select
-            value={form.activity}
-            onChange={(e) => update('activity', e.target.value)}
-            className="field-input"
-          >
-            {Object.entries(ACTIVITY_LEVELS).map(([key, val]) => (
-              <option key={key} value={key}>
-                {val.label} — {val.hint}
-              </option>
-            ))}
-          </select>
+        {/* Activity scoring — personalized instead of one static multiplier */}
+        <div className="space-y-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Activity size={16} className="text-brand-500" />
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Activity &amp; Lifestyle
+            </span>
+          </div>
+
+          <div>
+            <label className="field-label">Occupation</label>
+            <select
+              value={form.occupation}
+              onChange={(e) => update('occupation', e.target.value)}
+              className="field-input"
+            >
+              {Object.entries(OCCUPATION_LEVELS).map(([key, val]) => (
+                <option key={key} value={key}>
+                  {val.label} — {val.hint}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="field-label">Gym / week</label>
+              <input
+                type="number"
+                min="0"
+                value={form.gymSessions}
+                onChange={(e) => update('gymSessions', e.target.value)}
+                placeholder="e.g. 4"
+                className="field-input"
+              />
+            </div>
+            <div>
+              <label className="field-label">Cardio / week</label>
+              <input
+                type="number"
+                min="0"
+                value={form.cardioSessions}
+                onChange={(e) => update('cardioSessions', e.target.value)}
+                placeholder="e.g. 2"
+                className="field-input"
+              />
+            </div>
+            <div>
+              <label className="field-label">Daily steps</label>
+              <input
+                type="number"
+                min="0"
+                value={form.dailySteps}
+                onChange={(e) => update('dailySteps', e.target.value)}
+                placeholder="e.g. 8000"
+                className="field-input"
+              />
+              {errors.dailySteps && (
+                <p className="mt-1 text-sm text-rose-500">{errors.dailySteps}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Live estimated activity factor */}
+          <div className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+            <Gauge size={15} className="text-brand-500" />
+            Estimated activity factor:{' '}
+            <strong className="text-brand-700 dark:text-brand-300">
+              {activityPreview.multiplier}
+            </strong>
+            <span className="text-slate-400">· {activityPreview.label}</span>
+          </div>
+        </div>
+
+        {/* Optional body composition */}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <label className="field-label">
+              Body Fat % <span className="font-normal text-slate-400">— optional</span>
+            </label>
+            <input
+              type="number"
+              min="3"
+              max="60"
+              value={form.bodyFat}
+              onChange={(e) => update('bodyFat', e.target.value)}
+              placeholder="e.g. 18"
+              className="field-input"
+            />
+            {errors.bodyFat && <p className="mt-1 text-sm text-rose-500">{errors.bodyFat}</p>}
+          </div>
+          <div>
+            <label className="field-label">
+              Waist (cm) <span className="font-normal text-slate-400">— optional</span>
+            </label>
+            <input
+              type="number"
+              min="40"
+              max="200"
+              value={form.waist}
+              onChange={(e) => update('waist', e.target.value)}
+              placeholder="e.g. 82"
+              className="field-input"
+            />
+            {errors.waist && <p className="mt-1 text-sm text-rose-500">{errors.waist}</p>}
+          </div>
+          <p className="text-xs text-slate-400 sm:col-span-2">
+            Leave these blank and we'll estimate your body fat from your BMI, age &amp; height.
+            Adding waist (or a measured %) makes it more accurate.
+          </p>
         </div>
 
         {/* Goal */}
@@ -191,25 +309,30 @@ export default function Calculator() {
             className="field-input"
           />
 
-          {/* Smart suggestion based on the user's height, weight and goal. */}
-          {suggested ? (
+          {/* Recommended healthy target *range* based on BMI, body fat & goal. */}
+          {targetRange ? (
             <div className="mt-2 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm sm:flex-row sm:items-center sm:justify-between dark:border-brand-800 dark:bg-brand-900/30">
-              <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                <Sparkles size={15} className="text-brand-500" />
-                Suggested: <strong className="text-brand-700 dark:text-brand-300">{suggested} kg</strong>
-                <span className="text-slate-400">· healthy range {range.min}–{range.max} kg</span>
+              <span className="flex flex-col gap-0.5 text-slate-600 dark:text-slate-300">
+                <span className="flex items-center gap-2">
+                  <Sparkles size={15} className="text-brand-500" />
+                  Recommended range:{' '}
+                  <strong className="text-brand-700 dark:text-brand-300">
+                    {targetRange.min}–{targetRange.max} kg
+                  </strong>
+                </span>
+                <span className="text-xs text-slate-400">{targetRange.note}</span>
               </span>
               <button
                 type="button"
-                onClick={() => update('targetWeight', String(suggested))}
-                className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-600"
+                onClick={() => update('targetWeight', String(targetRange.recommended))}
+                className="shrink-0 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-600"
               >
-                Use {suggested} kg
+                Use {targetRange.recommended} kg
               </button>
             </div>
           ) : (
             <p className="mt-1 text-xs text-slate-400">
-              Enter your height &amp; weight above and we'll suggest an ideal target for your goal.
+              Enter your height &amp; weight above and we'll recommend a healthy target range for your goal.
             </p>
           )}
         </div>

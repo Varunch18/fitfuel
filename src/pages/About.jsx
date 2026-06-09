@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { HeartPulse, Flame, Zap, Target, Salad, Info } from 'lucide-react'
+import { HeartPulse, Flame, Zap, Target, Salad, Info, Percent } from 'lucide-react'
 
 // Beginner explanations for each metric FitFuel calculates.
 const concepts = [
@@ -18,8 +18,14 @@ const concepts = [
   {
     icon: Zap,
     title: 'TDEE (Maintenance Calories)',
-    text: 'Your BMR multiplied by an activity factor. This is roughly how many calories you burn in a full day. Eat this amount to stay the same weight.',
-    formula: 'TDEE = BMR × activity multiplier (1.2 – 1.9)',
+    text: 'Your BMR scaled by a personalized activity factor (PAL). Instead of one fixed dropdown, we build it from your occupation, daily steps, and weekly gym & cardio sessions for a more accurate estimate.',
+    formula: 'TDEE = BMR × PAL  (PAL built from occupation + steps + training, ~1.2 – 2.2)',
+  },
+  {
+    icon: Percent,
+    title: 'Body Fat & Lean Mass',
+    text: 'We estimate body fat from your waist (RFM method, validated vs. DXA) or from BMI/age (Deurenberg) when no waist is given — or use your measured %. Lean Body Mass is what remains after fat.',
+    formula: 'RFM(men) = 64 − 20·(height/waist) · LBM = weight × (1 − bodyFat%)',
   },
   {
     icon: Target,
