@@ -196,32 +196,19 @@ export default function Calculator() {
             </select>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="field-label">Gym sessions / week</label>
-              <input
-                type="number"
-                min="0"
-                value={form.gymSessions}
-                onChange={(e) => update('gymSessions', e.target.value)}
-                placeholder="e.g. 4"
-                className="field-input"
-              />
-            </div>
-            <div>
-              <label className="field-label">Average daily steps</label>
-              <input
-                type="number"
-                min="0"
-                value={form.dailySteps}
-                onChange={(e) => update('dailySteps', e.target.value)}
-                placeholder="e.g. 8000"
-                className="field-input"
-              />
-              {errors.dailySteps && (
-                <p className="mt-1 text-sm text-rose-500">{errors.dailySteps}</p>
-              )}
-            </div>
+          <div>
+            <label className="field-label">Gym sessions / week</label>
+            <input
+              type="number"
+              min="0"
+              value={form.gymSessions}
+              onChange={(e) => update('gymSessions', e.target.value)}
+              placeholder="e.g. 4"
+              className="field-input"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              No need to count steps — we'll suggest a daily step goal for you on the results page.
+            </p>
           </div>
 
           {/* Live estimated activity factor */}

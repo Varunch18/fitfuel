@@ -15,7 +15,6 @@ import {
   Pencil,
   Percent,
   Scale,
-  Target,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -216,12 +215,13 @@ export default function Results() {
       </div>
 
       {/* Activity & cardio stats */}
-      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
           icon={Footprints}
-          title="Daily Steps"
-          value={r.dailySteps ? r.dailySteps.toLocaleString() : '—'}
-          hint={r.dailySteps ? 'Your average daily steps' : 'Add steps for a better estimate'}
+          title="Recommended Steps"
+          value={r.stepGoal.steps.toLocaleString()}
+          unit="/ day"
+          hint={r.stepGoal.note}
           tone="brand"
         />
         <StatCard
@@ -239,13 +239,6 @@ export default function Results() {
           unit="kcal"
           hint="Calories burned moving (TDEE − BMR)"
           tone="amber"
-        />
-        <StatCard
-          icon={Target}
-          title="Recommended Steps"
-          value={r.stepGoal.steps.toLocaleString()}
-          hint={r.stepGoal.note}
-          tone="sky"
         />
       </div>
 

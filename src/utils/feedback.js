@@ -37,6 +37,7 @@ const MIN_CALORIES = { male: 1500, female: 1200 }
 export function generateFeedback({
   userData,
   bmr,
+  tdee,
   goalCalories,
   dailyDelta,
   protein,
