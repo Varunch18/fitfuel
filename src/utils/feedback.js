@@ -52,8 +52,8 @@ export function generateFeedback({
   if (goalCalories < bmr) {
     out.push({
       type: 'warning',
-      title: 'Calorie target may be too aggressive',
-      message: `Your target (${goalCalories.toLocaleString()} kcal) is below your BMR (${bmr.toLocaleString()} kcal). Consider a smaller deficit to protect muscle and metabolism.`,
+      title: 'Calorie target is below your BMR',
+      message: `Your target (${goalCalories.toLocaleString()} kcal) is below your BMR (${bmr.toLocaleString()} kcal) — the energy you burn at rest. Never diet below this without medical supervision; use a smaller deficit to protect muscle and metabolism.`,
     })
   } else if (goalCalories < floor) {
     // 2. Very low absolute calories.
@@ -62,6 +62,18 @@ export function generateFeedback({
       title: 'Calorie target is very low',
       message: `Eating under ~${floor.toLocaleString()} kcal/day is hard to sustain and may under-fuel you. A gentler deficit is usually more effective.`,
     })
+  }
+
+  // 2b. Deficit larger than 25% of maintenance — aggressive even if above BMR.
+  if (tdee > 0 && dailyDelta < 0) {
+    const deficitPct = Math.round((Math.abs(dailyDelta) / tdee) * 100)
+    if (deficitPct > 25) {
+      out.push({
+        type: 'caution',
+        title: 'Deficit is more than 25% of maintenance',
+        message: `Your deficit (~${deficitPct}% of your ${tdee.toLocaleString()} kcal maintenance) is aggressive. Deficits beyond ~25% increase muscle loss, hunger and fatigue — consider easing toward 15-20%.`,
+      })
+    }
   }
 
   // 3. Weekly rate of change exceeds the recommended ~1% of bodyweight.

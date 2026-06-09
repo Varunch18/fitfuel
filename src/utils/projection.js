@@ -51,6 +51,7 @@ const round1 = (n) => Number(n.toFixed(1))
  * @param {Gender} p.gender
  * @param {number} p.activityMultiplier
  * @param {number} p.goalCalories
+ * @param {number} [p.cardioDailyKcal=0]  Avg daily cardio burn (added to TDEE).
  * @param {number|string} [p.targetWeight]
  * @param {number} [p.maxWeeks=16]
  * @returns {Projection}
@@ -62,6 +63,7 @@ export function generateProjection({
   gender,
   activityMultiplier,
   goalCalories,
+  cardioDailyKcal = 0,
   targetWeight,
   maxWeeks = 16,
 }) {
@@ -69,7 +71,7 @@ export function generateProjection({
 
   // Initial weekly change (for labelling/maintenance detection).
   const startBmr = calculateBMR(startWeight, heightCm, age, gender)
-  const startTdee = Math.round(startBmr * activityMultiplier)
+  const startTdee = Math.round(startBmr * activityMultiplier + cardioDailyKcal)
   const initialWeeklyChange = round1(((goalCalories - startTdee) * 7) / KCAL_PER_KG)
   const isMaintain = Math.abs(initialWeeklyChange) < 0.05
 
@@ -83,16 +85,16 @@ export function generateProjection({
   let reachesTarget = false
 
   for (let i = 1; i <= maxWeeks; i++) {
-    mid = stepWeight(mid, heightCm, age, gender, activityMultiplier, goalCalories, 1.0)
-    low = stepWeight(low, heightCm, age, gender, activityMultiplier, goalCalories, 1.2)
-    high = stepWeight(high, heightCm, age, gender, activityMultiplier, goalCalories, 0.8)
+    mid = stepWeight(mid, heightCm, age, gender, activityMultiplier, goalCalories, 1.0, cardioDailyKcal)
+    low = stepWeight(low, heightCm, age, gender, activityMultiplier, goalCalories, 1.2, cardioDailyKcal)
+    high = stepWeight(high, heightCm, age, gender, activityMultiplier, goalCalories, 0.8, cardioDailyKcal)
 
     // Clamp every path so it never overshoots a defined target.
     if (target && !isMaintain) {
       ;[mid, low, high] = [mid, low, high].map((w) => clampToTarget(w, startWeight, target))
     }
 
-    const tdee = Math.round(calculateBMR(mid, heightCm, age, gender) * activityMultiplier)
+    const tdee = Math.round(calculateBMR(mid, heightCm, age, gender) * activityMultiplier + cardioDailyKcal)
     weeks.push({
       week: i,
       weight: round1(mid),
@@ -131,8 +133,8 @@ export function generateProjection({
  * applied to the deficit/surplus (1 = as planned, >1 optimistic loss, <1
  * conservative). TDEE is recomputed from the current weight.
  */
-function stepWeight(weight, heightCm, age, gender, multiplier, goalCalories, adherence) {
-  const tdee = calculateBMR(weight, heightCm, age, gender) * multiplier
+function stepWeight(weight, heightCm, age, gender, multiplier, goalCalories, adherence, cardioDailyKcal = 0) {
+  const tdee = calculateBMR(weight, heightCm, age, gender) * multiplier + cardioDailyKcal
   const dailyDelta = (goalCalories - tdee) * adherence
   return weight + (dailyDelta * 7) / KCAL_PER_KG
 }
@@ -144,4 +146,52 @@ function reachedTarget(weight, start, target) {
 function clampToTarget(weight, start, target) {
   if (target > start) return Math.min(weight, target)
   return Math.max(weight, target)
+}
+
+/**
+ * @typedef {Object} Milestone
+ * @property {number} month            1-indexed month number.
+ * @property {number} startWeight      Weight at the start of the month.
+ * @property {number} endWeight        Expected weight at the end of the month.
+ * @property {number} rangeLow         Optimistic end-of-month weight.
+ * @property {number} rangeHigh        Conservative end-of-month weight.
+ * @property {number} avgCalories      Average daily intake that month.
+ * @property {number} avgMaintenance   Average maintenance (TDEE) that month.
+ */
+
+/**
+ * Groups the week-by-week projection into ~monthly (4-week) milestones for a
+ * higher-level timeline view. Maintenance is averaged across the month's weeks
+ * (it falls as weight changes), so each milestone shows a realistic snapshot.
+ *
+ * @param {Projection} projection
+ * @param {number} startWeight
+ * @returns {Milestone[]}
+ */
+export function buildMonthlyMilestones(projection, startWeight) {
+  const { weeks } = projection
+  if (!weeks.length) return []
+
+  const milestones = []
+  const monthCount = Math.ceil(weeks.length / 4)
+
+  for (let m = 0; m < monthCount; m++) {
+    const slice = weeks.slice(m * 4, m * 4 + 4)
+    if (!slice.length) break
+    const last = slice[slice.length - 1]
+    const start = m === 0 ? startWeight : weeks[m * 4 - 1].weight
+    const avgMaintenance = Math.round(slice.reduce((s, w) => s + w.tdee, 0) / slice.length)
+
+    milestones.push({
+      month: m + 1,
+      startWeight: round1(start),
+      endWeight: last.weight,
+      rangeLow: last.weightLow,
+      rangeHigh: last.weightHigh,
+      avgCalories: slice[0].calories,
+      avgMaintenance,
+    })
+  }
+
+  return milestones
 }

@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Activity, ArrowRight, Gauge, RotateCcw, Sparkles, User } from 'lucide-react'
+import { Activity, ArrowRight, Footprints, Gauge, RotateCcw, Sparkles, User } from 'lucide-react'
 import { useUserData, DEFAULT_DATA } from '../context/UserDataContext.jsx'
 import { GOALS, calculateBMI, validateUserData } from '../utils/calculations.js'
 import { OCCUPATION_LEVELS, computeActivityMultiplier } from '../utils/activity.js'
+import { CARDIO_TYPES, computeCardio } from '../utils/cardio.js'
 import { recommendTargetRange } from '../utils/goals.js'
 import { estimateBodyFat, calculateLeanBodyMass } from '../utils/bodyComposition.js'
 
@@ -45,6 +46,17 @@ export default function Calculator() {
 
   // Live activity factor preview from the lifestyle inputs.
   const activityPreview = computeActivityMultiplier(form)
+
+  // Live cardio burn preview (needs a valid weight for MET maths).
+  const cardioPreview = computeCardio({
+    type: form.cardioType,
+    durationMin: form.cardioDuration,
+    sessionsPerWeek: form.cardioSessions,
+    weightKg: weightN || 70,
+    speed: form.cardioSpeed,
+    incline: form.cardioIncline,
+  })
+  const isInclineWalk = form.cardioType === 'incline'
 
   // Recommended healthy target-weight *range* (replaces the old fixed number).
   let targetRange = null
@@ -184,9 +196,9 @@ export default function Calculator() {
             </select>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="field-label">Gym / week</label>
+              <label className="field-label">Gym sessions / week</label>
               <input
                 type="number"
                 min="0"
@@ -197,18 +209,7 @@ export default function Calculator() {
               />
             </div>
             <div>
-              <label className="field-label">Cardio / week</label>
-              <input
-                type="number"
-                min="0"
-                value={form.cardioSessions}
-                onChange={(e) => update('cardioSessions', e.target.value)}
-                placeholder="e.g. 2"
-                className="field-input"
-              />
-            </div>
-            <div>
-              <label className="field-label">Daily steps</label>
+              <label className="field-label">Average daily steps</label>
               <input
                 type="number"
                 min="0"
@@ -232,6 +233,115 @@ export default function Calculator() {
             </strong>
             <span className="text-slate-400">· {activityPreview.label}</span>
           </div>
+        </div>
+
+        {/* Cardio / walking tracker — MET-based burn folded into TDEE */}
+        <div className="space-y-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Footprints size={16} className="text-brand-500" />
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Cardio &amp; Walking
+            </span>
+            <span className="text-xs text-slate-400">— optional, added to your burn</span>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <label className="field-label">Type</label>
+              <select
+                value={form.cardioType}
+                onChange={(e) => update('cardioType', e.target.value)}
+                className="field-input"
+              >
+                {Object.entries(CARDIO_TYPES).map(([key, val]) => (
+                  <option key={key} value={key}>
+                    {val.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="field-label">Duration (min)</label>
+              <input
+                type="number"
+                min="0"
+                value={form.cardioDuration}
+                onChange={(e) => update('cardioDuration', e.target.value)}
+                placeholder="e.g. 30"
+                className="field-input"
+              />
+              {errors.cardioDuration && (
+                <p className="mt-1 text-sm text-rose-500">{errors.cardioDuration}</p>
+              )}
+            </div>
+            <div>
+              <label className="field-label">Sessions / week</label>
+              <input
+                type="number"
+                min="0"
+                value={form.cardioSessions}
+                onChange={(e) => update('cardioSessions', e.target.value)}
+                placeholder="e.g. 3"
+                className="field-input"
+              />
+            </div>
+          </div>
+
+          {/* Incline walk needs speed + incline for the ACSM equation */}
+          {isInclineWalk && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="field-label">Speed (km/h)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={form.cardioSpeed}
+                  onChange={(e) => update('cardioSpeed', e.target.value)}
+                  placeholder="e.g. 5.5"
+                  className="field-input"
+                />
+                {errors.cardioSpeed && (
+                  <p className="mt-1 text-sm text-rose-500">{errors.cardioSpeed}</p>
+                )}
+              </div>
+              <div>
+                <label className="field-label">Incline (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.cardioIncline}
+                  onChange={(e) => update('cardioIncline', e.target.value)}
+                  placeholder="e.g. 8"
+                  className="field-input"
+                />
+                {errors.cardioIncline && (
+                  <p className="mt-1 text-sm text-rose-500">{errors.cardioIncline}</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Live cardio burn preview */}
+          {cardioPreview.active && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+              <span className="flex items-center gap-2">
+                <Activity size={15} className="text-brand-500" />~
+                <strong className="text-brand-700 dark:text-brand-300">
+                  {cardioPreview.perSession}
+                </strong>{' '}
+                kcal/session
+              </span>
+              <span className="text-slate-400">·</span>
+              <span>
+                <strong>{cardioPreview.weekly.toLocaleString()}</strong> kcal/week
+              </span>
+              <span className="text-slate-400">·</span>
+              <span>
+                <strong>{cardioPreview.dailyAverage}</strong> kcal/day avg (MET {cardioPreview.met})
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Optional body composition */}

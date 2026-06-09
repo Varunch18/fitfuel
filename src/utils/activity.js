@@ -1,17 +1,19 @@
 // ---------------------------------------------------------------------------
-// Activity scoring -> personalized Physical Activity Level (PAL) multiplier.
+// Step-based, personalized activity model.
 //
-// Instead of a single static "activity multiplier", we build the PAL from the
-// components that actually drive daily energy expenditure:
-//   1. Occupation (baseline NEAT - non-exercise activity)
-//   2. Daily steps (additional NEAT above a baseline)
-//   3. Structured gym / resistance sessions (TEA - thermic effect of activity)
-//   4. Cardio sessions (TEA)
+// Rather than one generic "activity level" dropdown, we build the day's energy
+// expenditure from the components that actually drive it:
 //
-// PAL is the established way exercise physiology scales BMR into TDEE
-// (TDEE = BMR x PAL). Typical PAL spans ~1.2 (sedentary) to ~2.0+ (very
-// active). References: FAO/WHO/UNU Human Energy Requirements (2004);
-// Mifflin-St Jeor (1990).
+//   Base TDEE = BMR x occupation multiplier   (day-long NEAT from your job)
+//   + step adjustment       (extra NEAT above a 5,000/day baseline)
+//   + gym adjustment        (resistance-training activity / EPOC)
+//   + cardio calories       (computed separately via MET — see cardio.js)
+//
+// This function returns the *multiplier* portion (occupation + steps + gym).
+// Cardio is added on top as an absolute kcal value in calculations.js so the
+// MET-based estimate isn't double-counted.
+//
+// References: FAO/WHO/UNU Human Energy Requirements (2004); ACSM guidelines.
 // ---------------------------------------------------------------------------
 
 /** @typedef {'sedentary'|'light'|'moderate'|'heavy'} OccupationKey */
@@ -20,24 +22,25 @@
  * @typedef {Object} ActivityInputs
  * @property {OccupationKey} [occupation]
  * @property {number|string} [gymSessions]   Resistance sessions per week.
- * @property {number|string} [cardioSessions] Cardio sessions per week.
  * @property {number|string} [dailySteps]    Average steps per day.
  */
 
 /**
  * @typedef {Object} ActivityResult
- * @property {number} multiplier   Final PAL multiplier (1.2 - 2.2).
+ * @property {number} multiplier   Occupation + steps + gym multiplier (1.2-2.2).
  * @property {string} label        Human-readable activity tier.
  * @property {string} hint         Short description of the tier.
  * @property {Object} breakdown    Per-component contribution (for transparency).
  */
 
-// Occupation baselines reflect day-long NEAT excluding deliberate exercise.
+// Occupation multipliers (classic activity factors) — the base of TDEE.
+// Keys kept stable for backwards-compatible saved data; labels match the
+// requested wording (Desk Job / Lightly Active / Active Job / Physical Labor).
 export const OCCUPATION_LEVELS = {
-  sedentary: { label: 'Desk job', base: 1.25, hint: 'Mostly sitting' },
-  light: { label: 'Lightly active job', base: 1.35, hint: 'Some standing/walking' },
-  moderate: { label: 'On your feet', base: 1.45, hint: 'Standing/walking most of the day' },
-  heavy: { label: 'Physical labor', base: 1.6, hint: 'Manual/heavy work' },
+  sedentary: { label: 'Desk Job', base: 1.2, hint: 'Mostly sitting' },
+  light: { label: 'Lightly Active', base: 1.375, hint: 'Some standing/walking' },
+  moderate: { label: 'Active Job', base: 1.55, hint: 'On your feet most of the day' },
+  heavy: { label: 'Physical Labor', base: 1.725, hint: 'Manual/heavy work' },
 }
 
 // Bounds keep the final estimate physiologically sensible.
@@ -60,20 +63,18 @@ export function computeActivityMultiplier(inputs = {}) {
   const base = OCCUPATION_LEVELS[occupation].base
 
   const gym = toNum(inputs.gymSessions)
-  const cardio = toNum(inputs.cardioSessions)
   const steps = toNum(inputs.dailySteps)
 
-  // Each structured session nudges PAL up, with diminishing/​capped returns so
-  // we never produce unrealistic multipliers from over-reported training.
-  const gymBonus = clamp(gym * 0.025, 0, 0.15) // ~6 sessions caps out
-  const cardioBonus = clamp(cardio * 0.03, 0, 0.15)
+  // Each resistance session nudges the multiplier up, capped so over-reported
+  // training can't produce an unrealistic factor.
+  const gymBonus = clamp(gym * 0.03, 0, 0.15) // ~5 sessions caps out
 
   // Steps above a 5,000/day baseline add NEAT (the occupation base already
   // assumes some movement, so we only count the surplus).
-  const stepsBonus = clamp(((steps - 5000) / 1000) * 0.025, 0, 0.15)
+  const stepsBonus = clamp(((steps - 5000) / 1000) * 0.03, 0, 0.2)
 
   const multiplier = clamp(
-    Number((base + gymBonus + cardioBonus + stepsBonus).toFixed(3)),
+    Number((base + gymBonus + stepsBonus).toFixed(3)),
     PAL_MIN,
     PAL_MAX,
   )
@@ -84,10 +85,30 @@ export function computeActivityMultiplier(inputs = {}) {
     breakdown: {
       occupationBase: base,
       gymBonus: Number(gymBonus.toFixed(3)),
-      cardioBonus: Number(cardioBonus.toFixed(3)),
       stepsBonus: Number(stepsBonus.toFixed(3)),
     },
   }
+}
+
+/**
+ * Recommends a daily step goal from the user's goal and current steps.
+ * Walking is the safest lever for adjusting NEAT without extra fatigue.
+ * @param {number|string} currentSteps
+ * @param {import('./goals.js').GoalKey} goalKey
+ * @returns {{steps:number, note:string}}
+ */
+export function recommendStepGoal(currentSteps, goalKey) {
+  const current = toNum(currentSteps)
+  const baseline = goalKey === 'cut' ? 10000 : goalKey === 'bulk' || goalKey === 'leanbulk' ? 7000 : 8000
+  // If they already walk more, nudge slightly upward for a cut, else maintain.
+  const steps = goalKey === 'cut' ? Math.min(14000, Math.max(baseline, current + 1000)) : Math.max(baseline, current)
+  const note =
+    goalKey === 'cut'
+      ? 'More steps boost your daily burn without extra hunger.'
+      : goalKey === 'bulk' || goalKey === 'leanbulk'
+        ? 'Keep steps moderate so you can recover and grow.'
+        : 'A solid baseline for general health.'
+  return { steps: Math.round(steps / 500) * 500, note }
 }
 
 /**

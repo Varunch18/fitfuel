@@ -21,10 +21,12 @@ import {
   getHealthyWeightRange,
   calculateBMR,
 } from './bmi.js'
-import { computeActivityMultiplier } from './activity.js'
+import { computeActivityMultiplier, recommendStepGoal } from './activity.js'
 import { estimateBodyFat, calculateLeanBodyMass } from './bodyComposition.js'
 import { GOALS, calculateProteinTarget, recommendTargetRange } from './goals.js'
-import { generateProjection, KCAL_PER_KG } from './projection.js'
+import { generateProjection, buildMonthlyMilestones, KCAL_PER_KG } from './projection.js'
+import { computeCardio } from './cardio.js'
+import { getCoachAdvice } from './coach.js'
 import { generateFeedback } from './feedback.js'
 
 // Re-export primitives so existing imports from './calculations.js' keep working.
@@ -35,7 +37,10 @@ export {
   calculateBMR,
 } from './bmi.js'
 export { GOALS } from './goals.js'
-export { KCAL_PER_KG, generateProjection } from './projection.js'
+export { KCAL_PER_KG, generateProjection, buildMonthlyMilestones } from './projection.js'
+export { computeCardio, CARDIO_TYPES } from './cardio.js'
+export { recommendStepGoal } from './activity.js'
+export { getCoachAdvice, ADJUSTMENT_RULES } from './coach.js'
 
 // Calorie density of each macronutrient (kcal per gram).
 const CALORIES_PER_GRAM = { protein: 4, carbs: 4, fat: 9 }
@@ -117,14 +122,28 @@ export function computeResults(data) {
   const bmr = calculateBMR(weight, height, age, gender)
   const healthyRange = getHealthyWeightRange(height)
 
-  // Personalized activity & energy
+  // Personalized activity & energy.
+  // Step-based model: occupation + steps + gym give the multiplier portion,
+  // then MET-based cardio is added on top as an absolute daily kcal value.
   const activity = computeActivityMultiplier({
     occupation: data.occupation,
     gymSessions: data.gymSessions,
-    cardioSessions: data.cardioSessions,
     dailySteps: data.dailySteps,
   })
-  const tdee = calculateTDEE(bmr, activity.multiplier)
+  const cardio = computeCardio({
+    type: data.cardioType,
+    durationMin: data.cardioDuration,
+    sessionsPerWeek: data.cardioSessions,
+    weightKg: weight,
+    speed: data.cardioSpeed,
+    incline: data.cardioIncline,
+  })
+
+  const baseTdee = calculateTDEE(bmr, activity.multiplier)
+  const tdee = baseTdee + cardio.dailyAverage
+  const activityBurn = tdee - bmr // estimated daily energy from all activity
+  const stepGoal = recommendStepGoal(data.dailySteps, data.goal)
+
   const goal = GOALS[data.goal] ?? GOALS.maintain
   const goalCalories = calculateGoalCalories(tdee, data.goal)
   const dailyDelta = goalCalories - tdee
@@ -159,8 +178,11 @@ export function computeResults(data) {
     gender,
     activityMultiplier: activity.multiplier,
     goalCalories,
+    cardioDailyKcal: cardio.dailyAverage,
     targetWeight: data.targetWeight,
   })
+  const milestones = buildMonthlyMilestones(projection, weight)
+  const coach = getCoachAdvice({ projection, goal })
 
   // Guidance
   const feedback = generateFeedback({
@@ -180,7 +202,12 @@ export function computeResults(data) {
     bmiCategory,
     bmr,
     activity,
+    baseTdee,
     tdee,
+    activityBurn,
+    cardio,
+    stepGoal,
+    dailySteps: Number(data.dailySteps) || 0,
     goal,
     goalCalories,
     dailyDelta,
@@ -191,6 +218,8 @@ export function computeResults(data) {
     targetRange,
     healthyRange,
     projection,
+    milestones,
+    coach,
     feedback,
   }
 }
@@ -220,6 +249,18 @@ export function validateUserData(data) {
   if (data.dailySteps !== '' && data.dailySteps != null) {
     const s = Number(data.dailySteps)
     if (!(s >= 0 && s <= 50000)) errors.dailySteps = 'Steps must be 0-50,000'
+  }
+  if (data.cardioDuration !== '' && data.cardioDuration != null) {
+    const d = Number(data.cardioDuration)
+    if (!(d >= 0 && d <= 300)) errors.cardioDuration = 'Duration must be 0-300 min'
+  }
+  if (data.cardioSpeed !== '' && data.cardioSpeed != null) {
+    const sp = Number(data.cardioSpeed)
+    if (!(sp >= 0 && sp <= 25)) errors.cardioSpeed = 'Speed must be 0-25 km/h'
+  }
+  if (data.cardioIncline !== '' && data.cardioIncline != null) {
+    const inc = Number(data.cardioIncline)
+    if (!(inc >= 0 && inc <= 40)) errors.cardioIncline = 'Incline must be 0-40%'
   }
   return errors
 }

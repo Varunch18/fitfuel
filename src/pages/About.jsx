@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { HeartPulse, Flame, Zap, Target, Salad, Info, Percent } from 'lucide-react'
+import { HeartPulse, Flame, Zap, Target, Salad, Info, Percent, Footprints } from 'lucide-react'
 
 // Beginner explanations for each metric FitFuel calculates.
 const concepts = [
@@ -20,6 +20,12 @@ const concepts = [
     title: 'TDEE (Maintenance Calories)',
     text: 'Your BMR scaled by a personalized activity factor (PAL). Instead of one fixed dropdown, we build it from your occupation, daily steps, and weekly gym & cardio sessions for a more accurate estimate.',
     formula: 'TDEE = BMR × PAL  (PAL built from occupation + steps + training, ~1.2 – 2.2)',
+  },
+  {
+    icon: Footprints,
+    title: 'Cardio & Step Burn',
+    text: 'Walking and cardio calories are estimated with MET values (the energy cost of an activity). Incline walking uses the ACSM walking equation, which accounts for your speed and the gradient. This burn is added to your daily maintenance.',
+    formula: 'kcal = MET × bodyweight (kg) × hours',
   },
   {
     icon: Percent,

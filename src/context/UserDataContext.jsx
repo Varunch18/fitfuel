@@ -16,8 +16,14 @@ export const DEFAULT_DATA = {
   // Activity-scoring inputs (replace the old single "activity" multiplier).
   occupation: 'sedentary', // 'sedentary' | 'light' | 'moderate' | 'heavy'
   gymSessions: '', // resistance sessions per week
-  cardioSessions: '', // cardio sessions per week
   dailySteps: '', // average steps per day
+
+  // Cardio / walking tracker (MET-based calorie burn folded into TDEE).
+  cardioType: 'walk', // 'walk' | 'incline' | 'run' | 'cycle'
+  cardioDuration: '', // minutes per session
+  cardioSessions: '', // cardio sessions per week
+  cardioSpeed: '', // km/h — used for incline walk
+  cardioIncline: '', // % — used for incline walk
 
   // Optional body-composition inputs.
   bodyFat: '', // measured body fat % (optional)

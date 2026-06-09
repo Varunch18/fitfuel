@@ -103,3 +103,95 @@ export function analyzeTrend(entries = []) {
     spanDays: Math.round(days[days.length - 1]),
   }
 }
+
+// ---------------------------------------------------------------------------
+// Multi-log foundation (weight + steps + cardio).
+//
+// A future Progress page can persist a single ProgressStore object (e.g. under
+// its own localStorage key) and render charts/trends from these pure helpers
+// without any further refactoring. Nothing below is wired into the UI yet.
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {Object} StepEntry
+ * @property {string} date   ISO date (yyyy-mm-dd).
+ * @property {number} steps
+ */
+
+/**
+ * @typedef {Object} CardioEntry
+ * @property {string} date              ISO date (yyyy-mm-dd).
+ * @property {import('./cardio.js').CardioType} type
+ * @property {number} durationMin
+ * @property {number} calories          Estimated kcal burned.
+ */
+
+/**
+ * @typedef {Object} ProgressStore
+ * @property {WeightEntry[]} weightLogs
+ * @property {StepEntry[]} stepLogs
+ * @property {CardioEntry[]} cardioLogs
+ */
+
+/** Returns an empty, well-typed progress store. */
+export function createProgressStore() {
+  return { weightLogs: [], stepLogs: [], cardioLogs: [] }
+}
+
+/** Creates a normalized step entry. */
+export function createStepEntry(steps, date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date)
+  return { date: d.toISOString().slice(0, 10), steps: Number(steps) }
+}
+
+/** Creates a normalized cardio entry. */
+export function createCardioEntry({ type, durationMin, calories }, date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date)
+  return {
+    date: d.toISOString().slice(0, 10),
+    type,
+    durationMin: Number(durationMin),
+    calories: Number(calories),
+  }
+}
+
+/**
+ * Logs an entry into the appropriate list of a ProgressStore, returning a new
+ * store (immutable update). Weight & step entries replace any same-day record;
+ * cardio entries are appended (multiple sessions per day are valid).
+ *
+ * @param {ProgressStore} store
+ * @param {'weight'|'step'|'cardio'} kind
+ * @param {WeightEntry|StepEntry|CardioEntry} entry
+ * @returns {ProgressStore}
+ */
+export function logToStore(store, kind, entry) {
+  const base = store ?? createProgressStore()
+  if (kind === 'weight') return { ...base, weightLogs: addEntry(base.weightLogs, entry) }
+  if (kind === 'step') {
+    const others = base.stepLogs.filter((e) => e.date !== entry.date)
+    return { ...base, stepLogs: sortEntries([...others, entry]) }
+  }
+  if (kind === 'cardio') return { ...base, cardioLogs: sortEntries([...base.cardioLogs, entry]) }
+  return base
+}
+
+/**
+ * Weekly summary across all logs — the data a future dashboard chart needs.
+ * @param {ProgressStore} store
+ * @returns {{weight: TrendAnalysis, avgSteps: number, weeklyCardioKcal: number}}
+ */
+export function summarizeProgress(store) {
+  const base = store ?? createProgressStore()
+  const avgSteps = base.stepLogs.length
+    ? Math.round(base.stepLogs.reduce((s, e) => s + e.steps, 0) / base.stepLogs.length)
+    : 0
+
+  // Cardio kcal logged within the last 7 days.
+  const weekAgo = Date.now() - 7 * 86_400_000
+  const weeklyCardioKcal = base.cardioLogs
+    .filter((e) => new Date(e.date).getTime() >= weekAgo)
+    .reduce((s, e) => s + e.calories, 0)
+
+  return { weight: analyzeTrend(base.weightLogs), avgSteps, weeklyCardioKcal }
+}

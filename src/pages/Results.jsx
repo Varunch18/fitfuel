@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
+  Activity,
   Beef,
+  Bike,
   CalendarCheck,
   Drumstick,
   Flame,
+  Footprints,
   Gauge,
   HeartPulse,
   Leaf,
@@ -12,6 +15,7 @@ import {
   Pencil,
   Percent,
   Scale,
+  Target,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -32,6 +36,8 @@ import MacroBar from '../components/MacroBar.jsx'
 import FoodList from '../components/FoodList.jsx'
 import WeeklyPlan from '../components/WeeklyPlan.jsx'
 import FeedbackList from '../components/FeedbackList.jsx'
+import AdaptiveCoach from '../components/AdaptiveCoach.jsx'
+import MonthlyMilestones from '../components/MonthlyMilestones.jsx'
 
 // Friendly labels for how body fat was derived.
 const BF_METHOD_LABEL = {
@@ -209,6 +215,40 @@ export default function Results() {
         />
       </div>
 
+      {/* Activity & cardio stats */}
+      <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          icon={Footprints}
+          title="Daily Steps"
+          value={r.dailySteps ? r.dailySteps.toLocaleString() : '—'}
+          hint={r.dailySteps ? 'Your average daily steps' : 'Add steps for a better estimate'}
+          tone="brand"
+        />
+        <StatCard
+          icon={Bike}
+          title="Weekly Cardio Burn"
+          value={r.cardio.active ? r.cardio.weekly.toLocaleString() : '—'}
+          unit={r.cardio.active ? 'kcal' : ''}
+          hint={r.cardio.active ? `${r.cardio.label} · ${r.cardio.dailyAverage} kcal/day avg` : 'No cardio logged'}
+          tone="rose"
+        />
+        <StatCard
+          icon={Activity}
+          title="Daily Activity Burn"
+          value={r.activityBurn.toLocaleString()}
+          unit="kcal"
+          hint="Calories burned moving (TDEE − BMR)"
+          tone="amber"
+        />
+        <StatCard
+          icon={Target}
+          title="Recommended Steps"
+          value={r.stepGoal.steps.toLocaleString()}
+          hint={r.stepGoal.note}
+          tone="sky"
+        />
+      </div>
+
       {/* Calorie gauge + macros */}
       <div className="mt-8 grid gap-5 lg:grid-cols-5">
         <motion.div
@@ -264,6 +304,9 @@ export default function Results() {
       {/* Smart feedback / safety guidance */}
       <FeedbackList messages={r.feedback} />
 
+      {/* Adaptive calorie coach */}
+      <AdaptiveCoach advice={r.coach} />
+
       {/* Week-by-week cut / bulk / maintain plan */}
       <WeeklyPlan
         projection={projection}
@@ -271,6 +314,9 @@ export default function Results() {
         goalLabel={goal.label}
         healthyRange={healthyRange}
       />
+
+      {/* Monthly milestone timeline */}
+      <MonthlyMilestones milestones={r.milestones} />
 
       {/* Food recommendations */}
       <div className="mt-12">

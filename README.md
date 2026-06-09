@@ -60,17 +60,22 @@ Notes:
 | Protein | cut `2.0–2.4`, maintain `1.6–2.0`, bulk `1.6–2.2` g/kg (adjusted bodyweight if overweight) | Morton (2018), ISSN (2017) |
 | Fat | `≥0.8 g/kg` and `≥20%` of calories | — |
 | Carbs | remaining calories after protein & fat | — |
+| TDEE (cardio) | `BMR × occupation/step/gym multiplier + avg daily cardio kcal` | — |
+| Cardio burn | `MET × bodyweight(kg) × hours`; incline walk MET via ACSM equation | Compendium / ACSM |
 | Weekly change | `(goalCalories − TDEE) × 7 / 7700`, **TDEE recomputed each week** (non-linear) | — |
 
 ## What's new in the engine
 
-- **Personalized activity scoring** (`utils/activity.js`) replaces a single static multiplier.
+- **Step-based TDEE** (`utils/activity.js`): occupation multiplier + daily steps + gym sessions, with MET cardio added on top.
+- **Cardio / walking tracker** (`utils/cardio.js`): MET-based burn for walk/incline/run/cycle (incline uses the ACSM walking equation), folded into TDEE.
+- **Adaptive calorie coach** (`utils/coach.js`): tells you when to hold, reduce, or raise calories based on weekly rate.
+- **Monthly milestones** (`buildMonthlyMilestones` in `utils/projection.js`): month-by-month timeline on top of the weekly table.
 - **Body-composition support** (`utils/bodyComposition.js`): body fat (measured / RFM / Deurenberg) + lean mass.
 - **Evidence-based protein & healthy target ranges** (`utils/goals.js`).
 - **Non-linear weight projection** with estimate ranges (`utils/projection.js`).
-- **Smart feedback / safety warnings** (`utils/feedback.js`).
-- **Progress-tracking foundation** with trend analysis (`utils/progress.js`).
-- Calculation modules carry JSDoc `@typedef` typings for editor type-safety.
+- **Smart deficit safety** (`utils/feedback.js`): warns below BMR, >25% deficit, >1%/week loss, unrealistic targets.
+- **Progress-tracking foundation** (`utils/progress.js`): weight/step/cardio logs + trend analysis, ready for a future Progress page.
+- Calculation modules carry JSDoc `@typedef` typings for editor type-safety (project is JS/JSX, not TS).
 
 ## Project structure
 
@@ -83,10 +88,11 @@ fitfuel/
 │   ├── index.css             # Tailwind + component classes
 │   ├── context/              # ThemeContext, UserDataContext
 │   ├── utils/                # calculations (orchestrator) + bmi, activity,
-│   │                         #   bodyComposition, goals, projection, feedback,
-│   │                         #   progress, foodData
+│   │                         #   cardio, bodyComposition, goals, projection,
+│   │                         #   coach, feedback, progress, foodData
 │   ├── components/           # Navbar, Footer, StatCard, MacroBar, CalorieGauge,
-│   │                         #   FoodList, WeeklyPlan, FeedbackList, ThemeToggle
+│   │                         #   FoodList, WeeklyPlan, FeedbackList, AdaptiveCoach,
+│   │                         #   MonthlyMilestones, ThemeToggle
 │   └── pages/                # Home, Calculator, Results, About
 └── tailwind.config.js
 ```
