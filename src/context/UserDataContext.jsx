@@ -11,6 +11,7 @@ export const DEFAULT_DATA = {
   gender: 'male',
   height: '',
   weight: '',
+  targetWeight: '', // optional goal weight for the week-by-week plan
   activity: 'moderate',
   goal: 'maintain',
   diet: 'veg', // food recommendation preference: 'veg' | 'nonveg'

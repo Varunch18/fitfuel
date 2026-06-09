@@ -17,6 +17,8 @@ import {
   ACTIVITY_LEVELS,
   GOALS,
   computeResults,
+  generateWeeklyPlan,
+  getHealthyWeightRange,
 } from '../utils/calculations.js'
 import {
   HEALTHY_CARBS,
@@ -28,6 +30,7 @@ import StatCard from '../components/StatCard.jsx'
 import CalorieGauge from '../components/CalorieGauge.jsx'
 import MacroBar from '../components/MacroBar.jsx'
 import FoodList from '../components/FoodList.jsx'
+import WeeklyPlan from '../components/WeeklyPlan.jsx'
 
 // Empty state shown when there's no saved data yet.
 function NoData() {
@@ -64,6 +67,13 @@ export default function Results() {
     carbs: (r.macros.carbs.cals / total) * 100,
     fat: (r.macros.fat.cals / total) * 100,
   }
+
+  // Week-by-week projection toward the (optional) target weight.
+  const startWeight = Number(userData.weight)
+  const healthyRange = getHealthyWeightRange(Number(userData.height))
+  const weeklyPlan = generateWeeklyPlan(startWeight, r.tdee, r.goalCalories, {
+    targetWeight: userData.targetWeight,
+  })
 
   // Build the protein cards based on diet preference.
   // 'mix' shows both veg and non-veg sources side by side.
@@ -186,6 +196,14 @@ export default function Results() {
           </div>
         </div>
       </div>
+
+      {/* Week-by-week cut / bulk / maintain plan */}
+      <WeeklyPlan
+        plan={weeklyPlan}
+        startWeight={startWeight}
+        goalLabel={goal.label}
+        healthyRange={healthyRange}
+      />
 
       {/* Food recommendations */}
       <div className="mt-12">

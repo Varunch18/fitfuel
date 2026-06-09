@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, RotateCcw, User } from 'lucide-react'
+import { ArrowRight, RotateCcw, Sparkles, User } from 'lucide-react'
 import { useUserData, DEFAULT_DATA } from '../context/UserDataContext.jsx'
-import { ACTIVITY_LEVELS, GOALS, validateUserData } from '../utils/calculations.js'
+import {
+  ACTIVITY_LEVELS,
+  GOALS,
+  getHealthyWeightRange,
+  suggestTargetWeight,
+  validateUserData,
+} from '../utils/calculations.js'
 
 // Calculator form: collects user inputs, validates, saves, then routes to results.
 export default function Calculator() {
@@ -32,6 +38,13 @@ export default function Calculator() {
     setForm(DEFAULT_DATA)
     setErrors({})
   }
+
+  // Live target-weight suggestion based on the entered height, weight & goal.
+  const heightN = Number(form.height)
+  const weightN = Number(form.weight)
+  const canSuggest = heightN >= 100 && heightN <= 250 && weightN >= 30 && weightN <= 300
+  const suggested = canSuggest ? suggestTargetWeight(weightN, heightN, form.goal) : null
+  const range = canSuggest ? getHealthyWeightRange(heightN) : null
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
@@ -163,6 +176,42 @@ export default function Calculator() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Optional target weight - drives the week-by-week plan */}
+        <div>
+          <label className="field-label">
+            Target Weight (kg) <span className="font-normal text-slate-400">— optional</span>
+          </label>
+          <input
+            type="number"
+            value={form.targetWeight}
+            onChange={(e) => update('targetWeight', e.target.value)}
+            placeholder="e.g. 65 — leave blank for a 12-week projection"
+            className="field-input"
+          />
+
+          {/* Smart suggestion based on the user's height, weight and goal. */}
+          {suggested ? (
+            <div className="mt-2 flex flex-col gap-2 rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm sm:flex-row sm:items-center sm:justify-between dark:border-brand-800 dark:bg-brand-900/30">
+              <span className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                <Sparkles size={15} className="text-brand-500" />
+                Suggested: <strong className="text-brand-700 dark:text-brand-300">{suggested} kg</strong>
+                <span className="text-slate-400">· healthy range {range.min}–{range.max} kg</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => update('targetWeight', String(suggested))}
+                className="rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-brand-600"
+              >
+                Use {suggested} kg
+              </button>
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-slate-400">
+              Enter your height &amp; weight above and we'll suggest an ideal target for your goal.
+            </p>
+          )}
         </div>
 
         {/* Diet preference for food suggestions */}

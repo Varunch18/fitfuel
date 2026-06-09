@@ -39,6 +39,43 @@ export function getBMICategory(bmi) {
 }
 
 /**
+ * Healthy weight range for a given height, based on the normal BMI band.
+ *   min  = BMI 18.5,  ideal = BMI 22 (mid-normal),  max = BMI 24.9
+ * Returns whole-kg numbers that are easy for beginners to read.
+ */
+export function getHealthyWeightRange(heightCm) {
+  const h = heightCm / 100
+  if (!h) return { min: 0, ideal: 0, max: 0 }
+  return {
+    min: Math.round(18.5 * h * h),
+    ideal: Math.round(22 * h * h),
+    max: Math.round(24.9 * h * h),
+  }
+}
+
+/**
+ * Suggests a sensible target weight from height + current weight + goal.
+ *   - Maintain: the ideal (mid-normal BMI) weight.
+ *   - Cut:  move toward ideal if above it, otherwise a small, safe reduction.
+ *   - Bulk: move toward ideal if below it, otherwise a modest gain (capped at
+ *           the top of the healthy range).
+ */
+export function suggestTargetWeight(weightKg, heightCm, goalKey) {
+  const { min, ideal, max } = getHealthyWeightRange(heightCm)
+  if (!ideal) return null
+
+  if (goalKey === 'cut') {
+    if (weightKg > ideal) return ideal
+    return Math.max(min, Math.round(weightKg - 2))
+  }
+  if (goalKey === 'bulk' || goalKey === 'leanbulk') {
+    if (weightKg < ideal) return ideal
+    return Math.min(max, Math.round(weightKg + 3))
+  }
+  return ideal // maintain
+}
+
+/**
  * BMR using the Mifflin-St Jeor equation.
  * Male:   10*kg + 6.25*cm - 5*age + 5
  * Female: 10*kg + 6.25*cm - 5*age - 161
@@ -83,6 +120,63 @@ export function calculateMacros(weightKg, goalCalories) {
     protein: { grams: proteinG, cals: proteinCals },
     fat: { grams: fatG, cals: fatCals },
     carbs: { grams: carbsG, cals: carbsCals },
+  }
+}
+
+// Roughly the number of calories stored in 1 kg of body mass.
+// Used to translate a daily calorie surplus/deficit into weekly weight change.
+export const KCAL_PER_KG = 7700
+
+/**
+ * Builds a week-by-week cut / bulk / maintain plan.
+ *
+ *  weekly weight change (kg) = (goalCalories - TDEE) * 7 / 7700
+ *
+ * If a valid `targetWeight` is supplied (and it's in the same direction as the
+ * goal), the plan runs only until the target is reached (capped at maxWeeks).
+ * Otherwise it shows a default projection window.
+ */
+export function generateWeeklyPlan(weightKg, tdee, goalCalories, options = {}) {
+  const maxWeeks = options.maxWeeks ?? 16
+  const dailyDelta = goalCalories - tdee
+  const weeklyChangeKg = Number(((dailyDelta * 7) / KCAL_PER_KG).toFixed(2))
+  const isMaintain = Math.abs(weeklyChangeKg) < 0.05
+
+  const targetWeight = Number(options.targetWeight) || null
+  let weeksCount = options.weeks ?? 12
+  let reachesTarget = false
+
+  // When a target is set and the goal moves toward it, size the plan to it.
+  if (targetWeight && !isMaintain) {
+    const diff = targetWeight - weightKg
+    const directionMatches = Math.sign(diff) === Math.sign(weeklyChangeKg)
+    if (directionMatches && diff !== 0) {
+      weeksCount = Math.ceil(Math.abs(diff / weeklyChangeKg))
+      reachesTarget = weeksCount <= maxWeeks
+    }
+  }
+  weeksCount = Math.max(1, Math.min(maxWeeks, weeksCount))
+
+  const weeks = []
+  let weight = weightKg
+  for (let i = 1; i <= weeksCount; i++) {
+    weight += weeklyChangeKg
+    // Clamp so we never overshoot a defined target.
+    if (targetWeight && !isMaintain) {
+      if (weeklyChangeKg > 0 && weight > targetWeight) weight = targetWeight
+      if (weeklyChangeKg < 0 && weight < targetWeight) weight = targetWeight
+    }
+    weeks.push({ week: i, weight: Number(weight.toFixed(1)), calories: goalCalories })
+  }
+
+  return {
+    dailyDelta,
+    weeklyChangeKg,
+    isMaintain,
+    targetWeight,
+    reachesTarget,
+    weeks,
+    totalChangeKg: Number((weeks[weeks.length - 1].weight - weightKg).toFixed(1)),
   }
 }
 
